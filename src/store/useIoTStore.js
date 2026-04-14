@@ -17,6 +17,7 @@ export const useIoTStore = create((set, get) => ({
   device: DEFAULT_DEVICE,
   settings: {
     notificationsEnabled: true,
+    threshold: 1800,
   },
   isConnected: false,
 
