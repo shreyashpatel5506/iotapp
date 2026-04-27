@@ -1,97 +1,99 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Smart Gas Monitoring App (Firebase Realtime)
 
-# Getting Started
+Production-ready React Native dashboard for a smart gas detection system with instant Firebase Realtime Database sync.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- Realtime gas value from `/sensor/gas`
+- Realtime status from `/device/status` (`SAFE` / `DANGER`)
+- Manual controls synced to Firebase:
+	- `/controls/fan`
+	- `/controls/buzzer`
+	- `/controls/servo`
+- Threshold control synced to Firebase:
+	- `/controls/threshold`
+	- Numeric input + slider (`1000` to `4000`)
+- DANGER-first UX:
+	- Red danger mode + `Gas Leak Detected` banner when backend status is `DANGER`
+	- Green safe mode when backend status is `SAFE`
+	- No local override of backend status
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Firebase Realtime Database Schema
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+```
+/sensor/gas -> number
+/device/status -> "SAFE" | "DANGER"
 
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+/controls/fan -> boolean
+/controls/buzzer -> boolean
+/controls/servo -> boolean
+/controls/threshold -> number
 ```
 
-## Step 2: Build and run your app
+## Folder Structure
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```
+src/
+	components/
+		ControlSwitch.js
+		ThresholdControl.js
+	hooks/
+		useRealtimeData.js
+	screens/
+		DashboardScreen.js
+	services/
+		firebase.js
+App.tsx
 ```
 
-### iOS
+## Firebase Config Setup (Expo-style environment variables)
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+1. Copy values into `.env` (already generated in this project):
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+	 - `EXPO_PUBLIC_FIREBASE_API_KEY`
+	 - `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`
+	 - `EXPO_PUBLIC_FIREBASE_DATABASE_URL`
+	 - `EXPO_PUBLIC_FIREBASE_PROJECT_ID`
+	 - `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET`
+	 - `EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+	 - `EXPO_PUBLIC_FIREBASE_APP_ID`
 
-```sh
-bundle install
-```
+2. Ensure your Firebase Realtime Database rules allow authenticated access suitable for your deployment model.
 
-Then, and every time you update your native dependencies, run:
+3. Create the required initial data nodes in Realtime Database:
 
-```sh
-bundle exec pod install
-```
+	 - `/sensor/gas` (number)
+	 - `/device/status` (`SAFE` or `DANGER`)
+	 - `/controls/fan` (boolean)
+	 - `/controls/buzzer` (boolean)
+	 - `/controls/servo` (boolean)
+	 - `/controls/threshold` (number between `1000` and `4000`)
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Run
 
-```sh
-# Using npm
-npm run ios
+Install dependencies and start Metro, then run on platform:
 
-# OR using Yarn
-yarn ios
-```
+- `npm install`
+- `npm start`
+- `npm run android` (or `npm run ios`)
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Architecture Notes
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+- `src/services/firebase.js`
+	- Contains all Firebase app initialization and DB read/write helpers.
+	- Uses modular SDK (`firebase/app`, `firebase/database`).
+- `src/hooks/useRealtimeData.js`
+	- Uses `onValue` listeners for all required paths.
+	- Maintains loading + error state.
+	- No polling.
+- `src/components/ControlSwitch.js`
+	- Reusable toggle UI component.
+- `src/components/ThresholdControl.js`
+	- Reusable slider + numeric input component.
+	- Writes threshold instantly to Firebase.
 
-## Step 3: Modify your app
+## Production Considerations
 
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- Keep `.env` out of source control (`.gitignore` already configured).
+- Restrict Firebase DB security rules before release.
+- Add crash reporting/analytics and E2E tests for deployment pipelines.

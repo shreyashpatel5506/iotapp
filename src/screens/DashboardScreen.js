@@ -1,303 +1,184 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import {
-  Fan,
-  RotateCcw,
-  Settings as SettingsIcon,
-  Radio,
-  ShieldAlert,
-  AlertTriangle,
-} from 'lucide-react-native';
-import { useIoTStore } from '../store/useIoTStore';
-import { colors } from '../theme/colors';
-import { AnimatedGauge } from '../components/AnimatedGauge';
-import LinearGradient from 'react-native-linear-gradient';
+  ActivityIndicator,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { ControlSwitch } from '../components/ControlSwitch';
+import { ThresholdControl } from '../components/ThresholdControl';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 
-export const DashboardScreen = () => {
-  const { device, isConnected, updateDeviceToggle } = useIoTStore();
-  const navigation = useNavigation();
-  
-  const isDanger = device.status === 'DANGER';
-  
+export function DashboardScreen() {
+  const { data, loading, error, actions } = useRealtimeData();
+
+  const isDanger = data.status === 'DANGER';
+  const palette = isDanger ? DANGER_THEME : SAFE_THEME;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color="#2A8CFF" />
+        <Text style={styles.loadingText}>
+          Connecting to Smart Gas system...
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <LinearGradient
-      colors={[colors.backgroundAlt, colors.background]}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Smart Gas</Text>
-            <Text style={styles.subtitle}>
-              {isDanger ? 'System activated protection.' : 'All systems normal.'}
-            </Text>
-          </View>
-          <Pressable
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
+    <View style={[styles.root, { backgroundColor: palette.background }]}>
+      <StatusBar barStyle={isDanger ? 'light-content' : 'dark-content'} />
+      <ScrollView contentContainerStyle={styles.content}>
+        <View
+          style={[styles.banner, { backgroundColor: palette.bannerBackground }]}
+        >
+          <Text style={[styles.bannerTitle, { color: palette.bannerText }]}>
+            {isDanger ? 'Gas Leak Detected' : 'Environment Stable'}
+          </Text>
+          <Text style={[styles.bannerSubtitle, { color: palette.bannerText }]}>
+            {isDanger
+              ? 'Backend status is DANGER. Follow your emergency protocol.'
+              : 'System currently reports SAFE status.'}
+          </Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Realtime Monitoring</Text>
+          <Text style={styles.gasValue}>{data.gas}</Text>
+          <Text style={styles.gasLabel}>Gas Sensor Value</Text>
+
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: isDanger ? '#D61E38' : '#1D8F4E' },
+            ]}
           >
-            <SettingsIcon color={colors.textPrimary} size={22} />
-          </Pressable>
-        </View>
-
-        {/* Dashboard Card */}
-        <View style={styles.card3d}>
-          <AnimatedGauge value={device.gasLevel} status={device.status} />
-          <View style={styles.indicatorContainer}>
-            <View style={styles.indicatorRow}>
-              <Radio color={isDanger ? colors.danger : colors.success} size={18} />
-              <Text style={styles.indicatorLabel}>System Status:</Text>
-              <Text
-                style={[
-                  styles.indicatorValue,
-                  { color: isDanger ? colors.danger : colors.success, marginLeft: 8 },
-                ]}
-              >
-                {device.status}
-              </Text>
-            </View>
+            <Text style={styles.statusText}>{data.status}</Text>
           </View>
         </View>
 
-        {/* Alert Section */}
-        <View style={[styles.alertCard, isDanger && styles.alertCardDanger]}>
-          <AlertTriangle
-            color={isDanger ? colors.danger : colors.warning}
-            size={24}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Manual Controls</Text>
+          <ControlSwitch
+            label="Fan"
+            value={data.controls.fan}
+            onValueChange={value => actions.setControl('fan', value)}
           />
-          <View style={styles.alertCopy}>
-            <Text style={styles.alertLabel}>Last Alert Message</Text>
-            <Text style={styles.alertValue} numberOfLines={2}>
-              {device.lastAlert}
-            </Text>
-          </View>
+          <ControlSwitch
+            label="Buzzer"
+            value={data.controls.buzzer}
+            onValueChange={value => actions.setControl('buzzer', value)}
+          />
+          <ControlSwitch
+            label="Servo"
+            value={data.controls.servo}
+            onValueChange={value => actions.setControl('servo', value)}
+          />
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Device Controls</Text>
-        </View>
+        <ThresholdControl
+          threshold={data.controls.threshold}
+          onChangeThreshold={actions.setThreshold}
+        />
 
-        {/* Controls Grid */}
-        <View style={styles.statsGrid}>
-          {/* Fan */}
-          <Pressable
-            style={[styles.statCard, device.fan && styles.interactiveCard]}
-            onPress={() => updateDeviceToggle('fan', !device.fan)}
-          >
-            <Fan
-              color={device.fan ? colors.primary : colors.textMuted}
-              size={24}
-            />
-            <Text style={styles.statLabel}>Exhaust Fan</Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: device.fan ? colors.primary : colors.textPrimary },
-              ]}
-            >
-              {device.fan ? 'ON' : 'OFF'}
-            </Text>
-          </Pressable>
-
-          {/* Buzzer */}
-          <Pressable
-            style={[styles.statCard, device.buzzer && styles.dangerCard]}
-            onPress={() => updateDeviceToggle('buzzer', !device.buzzer)}
-          >
-            <ShieldAlert
-              color={device.buzzer ? colors.danger : colors.textMuted}
-              size={24}
-            />
-            <Text style={styles.statLabel}>Alarm Buzzer</Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: device.buzzer ? colors.danger : colors.textPrimary },
-              ]}
-            >
-              {device.buzzer ? 'ON' : 'OFF'}
-            </Text>
-          </Pressable>
-
-          {/* Servo */}
-          <Pressable
-            style={[styles.statCard, device.servo && styles.interactiveCard]}
-            onPress={() => updateDeviceToggle('servo', !device.servo)}
-          >
-            <RotateCcw
-              color={device.servo ? colors.primary : colors.textMuted}
-              size={24}
-            />
-            <Text style={styles.statLabel}>Gas Valve Servo</Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: device.servo ? colors.primary : colors.textPrimary },
-              ]}
-            >
-              {device.servo ? 'ON' : 'OFF'}
-            </Text>
-          </Pressable>
-
-          {/* Servo Status */}
-          <View style={[styles.statCard, { justifyContent: 'center' }]}>
-            <Text style={styles.statLabel}>Servo Angle</Text>
-            <Text style={styles.statValue}>{device.servoAngle}°</Text>
-          </View>
-        </View>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: {
-    padding: 20,
-    paddingTop: 56,
-    paddingBottom: 28,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  headerCopy: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  card3d: {
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 30,
-    padding: 20,
-    marginBottom: 18,
-    shadowColor: colors.primaryGlow,
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 30,
-    elevation: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  indicatorContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 18,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  indicatorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  indicatorLabel: {
-    color: colors.textSecondary,
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  indicatorValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  alertCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  alertCardDanger: {
-    borderColor: colors.danger,
-    backgroundColor: colors.dangerBackground,
-  },
-  alertCopy: {
-    marginLeft: 14,
+  root: {
     flex: 1,
   },
-  alertLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    marginBottom: 4,
-    textTransform: 'uppercase',
+  loadingScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F8FC',
+    padding: 24,
   },
-  alertValue: {
-    color: colors.textPrimary,
+  loadingText: {
+    marginTop: 12,
     fontSize: 15,
-    fontWeight: '600',
+    color: '#29405F',
   },
-  sectionHeader: {
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  banner: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  bannerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  bannerSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D5DFEA',
+    padding: 16,
     marginBottom: 14,
   },
   sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0C1B2E',
+    marginBottom: 10,
+  },
+  gasValue: {
+    fontSize: 56,
     fontWeight: '800',
+    color: '#0C1B2E',
+    lineHeight: 68,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
+  gasLabel: {
+    fontSize: 15,
+    color: '#4F6075',
+    marginTop: 4,
   },
-  statCard: {
-    width: '48%',
-    backgroundColor: colors.surface,
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    minHeight: 110,
+  statusBadge: {
+    marginTop: 14,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
-  interactiveCard: {
-    borderColor: colors.primary,
-    backgroundColor: colors.surfaceLight,
-    borderWidth: 1.5,
-  },
-  dangerCard: {
-    borderColor: colors.danger,
-    backgroundColor: colors.dangerBackground,
-    borderWidth: 1.5,
-  },
-  statLabel: {
-    color: colors.textSecondary,
+  statusText: {
+    color: '#FFFFFF',
     fontSize: 13,
-    marginTop: 16,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '900',
-    marginTop: 6,
+  errorText: {
+    marginTop: 10,
+    color: '#B12439',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
+
+const SAFE_THEME = {
+  background: '#EAF7EF',
+  bannerBackground: '#1D8F4E',
+  bannerText: '#FFFFFF',
+};
+
+const DANGER_THEME = {
+  background: '#FFECEE',
+  bannerBackground: '#D61E38',
+  bannerText: '#FFFFFF',
+};
