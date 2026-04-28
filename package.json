@@ -10,7 +10,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@react-native-community/slider": "^4.5.7",
+    "@react-native-community/slider": "^5.2.0",
     "@react-native-firebase/app": "^24.0.0",
     "@react-native-firebase/database": "^24.0.0",
     "@react-native-firebase/messaging": "^24.0.0",
