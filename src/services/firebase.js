@@ -1,17 +1,34 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getDatabase, onValue, ref, set } from 'firebase/database';
+import { FIREBASE_CONFIG } from './config';
 
 const MIN_THRESHOLD = 1000;
 const MAX_THRESHOLD = 4000;
 
+// Use environment variables if available (development), otherwise use embedded config (release)
+const getEnv = key => {
+  if (typeof process !== 'undefined' && process?.env?.[key]) {
+    return process.env[key];
+  }
+
+  return undefined;
+};
+
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: getEnv('EXPO_PUBLIC_FIREBASE_API_KEY') || FIREBASE_CONFIG.apiKey,
+  authDomain:
+    getEnv('EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN') || FIREBASE_CONFIG.authDomain,
+  databaseURL:
+    getEnv('EXPO_PUBLIC_FIREBASE_DATABASE_URL') || FIREBASE_CONFIG.databaseURL,
+  projectId:
+    getEnv('EXPO_PUBLIC_FIREBASE_PROJECT_ID') || FIREBASE_CONFIG.projectId,
+  storageBucket:
+    getEnv('EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET') ||
+    FIREBASE_CONFIG.storageBucket,
+  messagingSenderId:
+    getEnv('EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID') ||
+    FIREBASE_CONFIG.messagingSenderId,
+  appId: getEnv('EXPO_PUBLIC_FIREBASE_APP_ID') || FIREBASE_CONFIG.appId,
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
