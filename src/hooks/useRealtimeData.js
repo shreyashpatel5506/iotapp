@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert } from 'react-native';
 import {
   clampThreshold,
-  subscribeToBuzzer,
-  subscribeToFan,
+  subscribeToDevice,
+  subscribeToControls,
   subscribeToGas,
-  subscribeToServo,
-  subscribeToStatus,
-  subscribeToThreshold,
+  subscribeToAlerts,
+  subscribeToConnection,
   updateControlSwitch,
   updateThreshold,
 } from '../services/firebase';
@@ -14,67 +14,83 @@ import {
 const INITIAL_DATA = {
   gas: 0,
   status: 'SAFE',
+  isConnected: false,
   controls: {
     fan: false,
     buzzer: false,
     servo: false,
-    threshold: 1800,
+    threshold: 3113,
   },
+  device: {
+    buzzer: false,
+    fan: false,
+    gasLevel: 0,
+    manualOverride: false,
+    servo: false,
+    servoAngle: 0,
+    status: 'SAFE',
+  },
+  alerts: {
+    lastAlert: '',
+  }
 };
-
-const REQUIRED_KEYS = ['gas', 'status', 'fan', 'buzzer', 'servo', 'threshold'];
 
 export function useRealtimeData() {
   const [data, setData] = useState(INITIAL_DATA);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const hydratedKeysRef = useRef(new Set());
 
-  const markHydrated = key => {
-    hydratedKeysRef.current.add(key);
-    if (hydratedKeysRef.current.size >= REQUIRED_KEYS.length) {
-      setLoading(false);
-    }
-  };
+  
+  const lastAlertRef = useRef('');
+  const isFirstLoadAlert = useRef(true);
 
   useEffect(() => {
     const unsubscribers = [
       subscribeToGas(value => {
-        setData(current => ({ ...current, gas: value }));
-        markHydrated('gas');
+        setData(current => ({ 
+          ...current, 
+          gas: value,
+          device: { ...current.device, gasLevel: value } 
+        }));
+        setLoading(false);
       }),
-      subscribeToStatus(value => {
-        setData(current => ({ ...current, status: value }));
-        markHydrated('status');
-      }),
-      subscribeToFan(value => {
+      subscribeToDevice(deviceData => {
         setData(current => ({
           ...current,
-          controls: { ...current.controls, fan: value },
+          status: deviceData?.status || current.status,
+          device: { ...current.device, ...deviceData }
         }));
-        markHydrated('fan');
       }),
-      subscribeToBuzzer(value => {
+      subscribeToConnection(isConnected => {
         setData(current => ({
           ...current,
-          controls: { ...current.controls, buzzer: value },
+          isConnected
         }));
-        markHydrated('buzzer');
       }),
-      subscribeToServo(value => {
+
+      subscribeToControls(controlsData => {
         setData(current => ({
           ...current,
-          controls: { ...current.controls, servo: value },
+          controls: { ...current.controls, ...controlsData }
         }));
-        markHydrated('servo');
       }),
-      subscribeToThreshold(value => {
+      subscribeToAlerts(alertsData => {
+        const lastAlert = alertsData?.lastAlert || '';
         setData(current => ({
           ...current,
-          controls: { ...current.controls, threshold: value },
+          alerts: { ...current.alerts, ...alertsData }
         }));
-        markHydrated('threshold');
+
+        if (isFirstLoadAlert.current) {
+          lastAlertRef.current = lastAlert;
+          isFirstLoadAlert.current = false;
+        } else if (lastAlert && lastAlert !== lastAlertRef.current) {
+          lastAlertRef.current = lastAlert;
+          // Trigger push notification (simulated via Alert.alert)
+          Alert.alert('🚨 Gas System Alert', lastAlert);
+        }
       }),
+
     ];
 
     return () => {
@@ -111,3 +127,4 @@ export function useRealtimeData() {
 
   return { data, loading, error, actions };
 }
+

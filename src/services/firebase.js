@@ -1,6 +1,9 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getDatabase, onValue, ref, set } from 'firebase/database';
+import RNFirebaseDatabase from '@react-native-firebase/database';
 import { FIREBASE_CONFIG } from './config';
+
+export const db = RNFirebaseDatabase();
 
 const MIN_THRESHOLD = 1000;
 const MAX_THRESHOLD = 4000;
@@ -37,12 +40,18 @@ const database = getDatabase(app);
 const refs = {
   gas: ref(database, '/sensor/gas'),
   status: ref(database, '/device/status'),
+  fan: ref(database, '/device/fan'),
+  buzzer: ref(database, '/device/buzzer'),
+  servo: ref(database, '/device/servo'),
+  threshold: ref(database, '/controls/threshold'),
+};
+
+const controlRefs = {
   fan: ref(database, '/controls/fan'),
   buzzer: ref(database, '/controls/buzzer'),
   servo: ref(database, '/controls/servo'),
   threshold: ref(database, '/controls/threshold'),
 };
-
 function listenWithFallback(reference, mapValue, fallbackValue, onChange) {
   return onValue(reference, snapshot => {
     const raw = snapshot.val();
@@ -105,14 +114,41 @@ export function subscribeToThreshold(onChange) {
   );
 }
 
+export function subscribeToDevice(onChange) {
+  return onValue(ref(database, '/device'), snapshot => {
+    onChange(snapshot.val() || {});
+  });
+}
+
+export function subscribeToControls(onChange) {
+  return onValue(ref(database, '/controls'), snapshot => {
+    onChange(snapshot.val() || {});
+  });
+}
+
+export function subscribeToAlerts(onChange) {
+  return onValue(ref(database, '/alerts'), snapshot => {
+    onChange(snapshot.val() || {});
+  });
+}
+
+export function subscribeToConnection(onChange) {
+  return onValue(ref(database, '.info/connected'), snapshot => {
+    onChange(snapshot.val() === true);
+  });
+}
+
+
 export function updateControlSwitch(name, enabled) {
-  if (!refs[name]) {
-    throw new Error(`Unsupported control: ${name}`);
+  if (!controlRefs[name]) {
+    // Dynamically create ref if it doesn't exist
+    return set(ref(database, `/controls/${name}`), Boolean(enabled));
   }
 
-  return set(refs[name], Boolean(enabled));
+  return set(controlRefs[name], Boolean(enabled));
 }
 
 export function updateThreshold(value) {
-  return set(refs.threshold, clampThreshold(value));
+  return set(ref(database, '/controls/threshold'), clampThreshold(value));
 }
+
