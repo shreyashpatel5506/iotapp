@@ -1,327 +1,233 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useIoTStore } from '../store/useIoTStore';
-import { colors } from '../theme/colors';
+import React, { useEffect, useState } from 'react';
 import {
-  AlertOctagon,
-  PhoneCall,
-  Settings as SettingsIcon,
-  Fan,
-  RotateCcw,
-  ShieldCheck,
-} from 'lucide-react-native';
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  Vibration,
+  Linking,
+} from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import { useIoTStore } from '../store/useIoTStore';
+import { AlertTriangle, PhoneCall, Flame, Phone } from 'lucide-react-native';
+import Animated, { useSharedValue, withRepeat, withTiming, useAnimatedStyle, withSequence } from 'react-native-reanimated';
 
 export const AlertScreen = () => {
-  const { device, settings, triggerReset, isConnected } = useIoTStore();
-  const navigation = useNavigation();
-  const gasLevel = device.gasLevel;
-  const canReset = isConnected && !device.gasDetected && device.eventLatched;
-  const buzzerLabel = device.buzzer ? 'ON' : 'OFF';
-  const modeLabel =
-    device.state === 'WARNING'
-      ? 'POST-ALERT'
-      : device.state === 'WARMING_UP'
-      ? 'WARMING UP'
-      : 'GAS DETECTED';
+  const { settings, triggerReset } = useIoTStore();
+
+  const [countdown, setCountdown] = useState(10);
+  const [callCancelled, setCallCancelled] = useState(false);
+
+  // Flashing animation
+  const opacity = useSharedValue(1);
+
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(withTiming(0.2, { duration: 400 }), withTiming(1, { duration: 400 })),
+      -1,
+      true
+    );
+
+    return () => {
+      opacity.value = 1;
+    };
+  }, [opacity]);
+
+  useEffect(() => {
+    let timer;
+    if (countdown > 0 && !callCancelled && settings.emergencyCallEnabled) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (countdown === 0 && !callCancelled && settings.emergencyCallEnabled) {
+      // Auto-call when countdown hits 0
+      placeCall('9054003478');
+      setCallCancelled(true); // Stop further calls
+    }
+    return () => clearTimeout(timer);
+  }, [countdown, callCancelled, settings]);
+
+  const placeCall = (number) => {
+    Linking.openURL(`tel:${number}`).catch((err) => console.error("Error opening dialer", err));
+  };
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
 
   return (
-    <LinearGradient
-      colors={[colors.dangerBackground, colors.background]}
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: '#3D0A0A' }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#3D0A0A" />
+
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.headerLabel}>LIVE ALERT</Text>
-            <Text style={styles.title}>Gas detected</Text>
-            <Text style={styles.subtitle}>
-              Automatic safety is active and this screen tracks the live
-              response state.
+        
+        {/* FLASHING WARNING */}
+        <Animated.View style={[styles.alertHeader, animatedStyle]}>
+          <AlertTriangle size={60} color="#FF4D4D" />
+          <Text style={styles.title}>⚠ GAS LEAK DETECTED</Text>
+        </Animated.View>
+
+        <Text style={styles.warningText}>
+          Evacuate the area immediately. Do not turn on any electrical switches.
+        </Text>
+
+        {/* COUNTDOWN & AUTO CALL */}
+        {settings.emergencyCallEnabled && !callCancelled && (
+          <View style={styles.countdownBox}>
+            <Text style={styles.countdownText}>
+              Calling emergency in {countdown} seconds...
             </Text>
+            <View style={styles.countdownActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setCallCancelled(true)}>
+                <Text style={styles.cancelText}>Cancel Call ❌</Text>
+              </Pressable>
+              <Pressable style={styles.callNowBtn} onPress={() => { setCallCancelled(true); placeCall('9054003478'); }}>
+                <Text style={styles.callNowText}>Call Now 📞</Text>
+              </Pressable>
+            </View>
           </View>
-          <Pressable
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <SettingsIcon color={colors.textPrimary} size={22} />
-          </Pressable>
-        </View>
-
-        <View style={styles.iconWrap}>
-          <AlertOctagon size={112} color={colors.danger} />
-        </View>
-
-        <View style={styles.banner}>
-          <Text style={styles.bannerLabel}>SYSTEM MODE</Text>
-          <Text style={styles.bannerValue}>{modeLabel}</Text>
-          <Text style={styles.bannerText}>
-            Gas detected keeps buzzer ON, fan ON, and servo at 90°. After gas
-            drops, buzzer stays OFF and you can reset servo/fan from mobile.
-          </Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>GAS LEVEL</Text>
-          <Text style={styles.gasLevel}>{gasLevel} PPM</Text>
-          <Text style={styles.info}>
-            Keep the area ventilated. Use the controls below to adjust fan and
-            servo if needed.
-          </Text>
-        </View>
-
-        <View style={styles.statsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Fan</Text>
-            <Text style={styles.statValue}>{device.fan ? 'ON' : 'OFF'}</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Servo</Text>
-            <Text style={styles.statValue}>{device.servo ? '90°' : '0°'}</Text>
-          </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Buzzer</Text>
-            <Text style={styles.statValue}>{buzzerLabel}</Text>
-          </View>
-        </View>
-
-        <View style={styles.controlCard}>
-          <Text style={styles.sectionTitle}>Manual Reset</Text>
-          <Text style={styles.sectionText}>
-            Reset commands are enabled only after gas drops below the threshold.
-          </Text>
-          <Pressable
-            style={[
-              styles.resetButton,
-              !canReset && styles.resetButtonDisabled,
-            ]}
-            onPress={() => triggerReset('fan')}
-            disabled={!canReset}
-          >
-            <Fan color={colors.textPrimary} size={18} />
-            <Text style={styles.resetButtonText}>Reset Fan</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.resetButton,
-              !canReset && styles.resetButtonDisabled,
-            ]}
-            onPress={() => triggerReset('servo')}
-            disabled={!canReset}
-          >
-            <RotateCcw color={colors.textPrimary} size={18} />
-            <Text style={styles.resetButtonText}>Reset Servo</Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.resetButton,
-              styles.resetAll,
-              !canReset && styles.resetButtonDisabled,
-            ]}
-            onPress={() => triggerReset('all')}
-            disabled={!canReset}
-          >
-            <ShieldCheck color={colors.textPrimary} size={18} />
-            <Text style={styles.resetButtonText}>Reset All</Text>
-          </Pressable>
-        </View>
-
-        {settings.emergencyCallEnabled && (
-          <Pressable style={styles.callButton}>
-            <PhoneCall color={colors.textPrimary} size={24} />
-            <Text style={styles.callButtonText}>
-              Call {settings.emergencyNumber}
-            </Text>
-          </Pressable>
         )}
+
+        {/* LARGE EMERGENCY BUTTONS */}
+        <Text style={styles.sectionTitle}>Emergency Contacts</Text>
+        
+        <Pressable style={styles.bigCallBtn} onPress={() => placeCall('9054003478')}>
+          <View style={styles.iconCircle}>
+            <PhoneCall size={24} color="#2ECC71" />
+          </View>
+          <View style={styles.btnTextContainer}>
+            <Text style={styles.btnTitle}>Call Saved Contact</Text>
+            <Text style={styles.btnSubtitle}>Dial 90540 03478</Text>
+          </View>
+          <PhoneCall color="#fff" size={24} />
+        </Pressable>
+
+
+        {/* SYSTEM ACTIONS */}
+        <View style={{ height: 30 }} />
+        <Pressable style={styles.resetBtn} onPress={() => triggerReset('all')}>
+          <Text style={styles.resetText}>RESET SYSTEM & DISMISS</Text>
+        </Pressable>
+
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingTop: 56,
-    paddingBottom: 30,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  headerTextBlock: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  headerLabel: {
-    color: colors.warning,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-    marginBottom: 8,
-  },
-  title: {
-    color: colors.danger,
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 10,
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  container: { flex: 1 },
+  content: { padding: 24, paddingTop: 60, alignItems: 'center' },
+  alertHeader: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 20,
+    marginTop: 20,
   },
-  iconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 14,
+  title: { 
+    color: '#FF4D4D', 
+    fontSize: 28, 
+    fontWeight: '900', 
+    textAlign: 'center',
+    marginTop: 16,
+    letterSpacing: 1
   },
-  banner: {
-    backgroundColor: 'rgba(255,94,120,0.12)',
-    borderWidth: 1,
-    borderColor: colors.danger,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
-  },
-  bannerLabel: {
-    color: colors.danger,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
-  bannerValue: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
-  bannerText: {
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 14,
-  },
-  cardLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    letterSpacing: 1.4,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  gasLevel: {
-    color: colors.textPrimary,
-    fontSize: 44,
-    fontWeight: '900',
-    marginBottom: 10,
-  },
-  info: {
-    color: colors.textSecondary,
+  warningText: {
+    color: '#FFB8B8',
     fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 30,
     lineHeight: 24,
+    fontWeight: '500'
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  statBox: {
-    width: '31%',
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 18,
-    padding: 14,
+  countdownBox: {
+    backgroundColor: 'rgba(255, 77, 77, 0.15)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#FF4D4D',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    marginBottom: 30,
+    alignItems: 'center'
   },
-  statLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  statValue: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  controlCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 18,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '900',
-    marginBottom: 8,
-  },
-  sectionText: {
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  resetButton: {
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  resetButtonDisabled: {
-    opacity: 0.45,
-  },
-  resetAll: {
-    backgroundColor: colors.warning,
-  },
-  resetButtonText: {
-    color: colors.textPrimary,
-    fontWeight: '900',
-    fontSize: 14,
-  },
-  callButton: {
-    flexDirection: 'row',
-    backgroundColor: colors.danger,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  callButtonText: {
-    color: colors.textPrimary,
+  countdownText: {
+    color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 12,
+    marginBottom: 16,
   },
+  countdownActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%'
+  },
+  cancelBtn: {
+    flex: 1,
+    backgroundColor: '#2A0F14',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#4A1D24'
+  },
+  cancelText: { color: '#a0abc0', fontSize: 16, fontWeight: 'bold' },
+  callNowBtn: {
+    flex: 1,
+    backgroundColor: '#FF4D4D',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  callNowText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  sectionTitle: {
+    color: '#a0abc0',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 16,
+    alignSelf: 'flex-start'
+  },
+  bigCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 20,
+    borderRadius: 20,
+    width: '100%',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  iconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  btnTextContainer: {
+    flex: 1,
+  },
+  btnTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  btnSubtitle: {
+    color: '#a0abc0',
+    fontSize: 14,
+  },
+  resetBtn: {
+    backgroundColor: '#1C0404',
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#FF4D4D',
+  },
+  resetText: { color: '#FF4D4D', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
 });

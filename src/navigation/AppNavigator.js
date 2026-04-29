@@ -4,30 +4,21 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { AlertScreen } from '../screens/AlertScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { useIoTStore } from '../store/useIoTStore';
+import { NotificationScreen } from '../screens/NotificationScreen';
+import { useRealtimeData } from '../hooks/useRealtimeData';
 import { colors } from '../theme/colors';
 
 const Stack = createNativeStackNavigator();
 
 export const AppNavigator = () => {
-  const { device } = useIoTStore();
+  const { data } = useRealtimeData();
   const navigationRef = useRef(null);
 
-  // Core requirement: Auto redirection on danger
+  // Auto redirection handled by blocking modal in DashboardScreen
   useEffect(() => {
-    if (!navigationRef.current) return;
-    
-    if (device.status === 'DANGER') {
-      // Force navigation to alert screen
-      navigationRef.current.navigate('Alert');
-    } else if (device.status === 'SAFE') {
-      // Return to Dashboard if safe
-      const currentRoute = navigationRef.current.getCurrentRoute();
-      if (currentRoute && currentRoute.name === 'Alert') {
-        navigationRef.current.navigate('Dashboard');
-      }
-    }
-  }, [device.status]);
+    // Redirection disabled
+  }, [data.status]);
+
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -44,6 +35,7 @@ export const AppNavigator = () => {
           options={{ gestureEnabled: false }} // Cannot swipe back from danger
         />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Notifications" component={NotificationScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
